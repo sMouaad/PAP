@@ -50,15 +50,45 @@ void merge(uint64_t *T, const uint64_t size) {
 */
 
 void sequential_merge_sort(uint64_t *T, const uint64_t size) {
-    /* TODO: sequential implementation of merge sort */
+    if (size < 2)
+        return;
 
-    return;
+    uint64_t half = size / 2;
+    sequential_merge_sort(T, half);
+    sequential_merge_sort(T + half, half);
+    merge(T, half);
+}
+
+// below this size, task creation overhead is larger than task benefit as shown in the benchmark
+#define PARALLEL_THRESHOLD 1024
+
+static void parallel_merge_sort_rec(uint64_t *T, const uint64_t size) {
+    if (size < 2)
+        return;
+
+    if (size <= PARALLEL_THRESHOLD) {
+        sequential_merge_sort(T, size);
+        return;
+    }
+
+    uint64_t half = size / 2;
+
+    #pragma omp task
+    parallel_merge_sort_rec(T, half);
+
+    #pragma omp task
+    parallel_merge_sort_rec(T + half, half);
+
+    #pragma omp taskwait
+    merge(T, half);
 }
 
 void parallel_merge_sort(uint64_t *T, const uint64_t size) {
-    /* TODO: parallel implementation of merge sort */
-
-    return;
+    #pragma omp parallel
+    {
+        #pragma omp single
+        parallel_merge_sort_rec(T, size);
+    }
 }
 
 int main(int argc, char **argv) {
