@@ -2,10 +2,46 @@
 import subprocess
 import os
 import matplotlib.pyplot as plt 
-import numpy as np
 import re
 
-nr_threads_list = [2, 4, 8]
+
+def extract_elapsed_real_time(output: str):
+    """Return elapsed_real_time in seconds from cpu_stats output, or None if not found."""
+    # Example line:
+    # bubble serial: {elapsed_cpu_time: 0.123456 s, elapsed_real_time: 0.234567 s}
+    # or with cpu cycles before that field.
+    for line in output.splitlines():
+        if "elapsed_real_time" in line:
+            m = re.search(r"elapsed_real_time:\s*([0-9]+(?:\.[0-9]+)?)\s*s", line)
+            if m:
+                return float(m.group(1))
+    return None
+
+def build_thread_list():
+    """Build a power-of-two thread list up to MAX_THREADS, clipped to available CPUs.
+
+    Override examples:
+      MAX_THREADS=128 python3 plot_times.py
+      THREAD_LIST=2,4,8,16,32,64,128 python3 plot_times.py
+    """
+    raw_list = os.getenv("THREAD_LIST", "").strip()
+    if raw_list:
+        values = sorted({int(x) for x in raw_list.split(",") if x.strip()})
+        return [v for v in values if v >= 2]
+
+    available = os.cpu_count() or 1
+    max_threads = int(os.getenv("MAX_THREADS", "16"))
+    max_threads = max(2, min(max_threads, available))
+
+    threads = []
+    t = 2
+    while t <= max_threads:
+        threads.append(t)
+        t *= 2
+    return threads
+
+
+nr_threads_list = build_thread_list()
 
 def run_and_plot(exec_name: str, start_range: int, end_range: int):
     print(f"Benchmarking: {exec_name}")
@@ -27,14 +63,14 @@ def run_and_plot(exec_name: str, start_range: int, end_range: int):
 
         result = subprocess.run([exec_name, str(N)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=my_env)
         output = result.stdout.decode('utf-8')
-        for line in output.splitlines():
-            if "serial" in line:
-                # print(line, times)
-                times = re.findall(r"[-+]?\d*\.\d+|\d+ s", line)
-                t = str(times[1]) # elapsed_real_time
-                # t = str(times[0]) # elapsed_cpu_time
-                time_serial.append(float(t))
-                print(f"{N};{2**N};{exec_name};serial;1;{t}", flush=True)
+        t = extract_elapsed_real_time(output)
+        if t is None:
+            # Keep vectors aligned even when one run fails to print expected stats.
+            time_serial.append(float('nan'))
+            print(f"WARN: missing serial timing for N={N} in {exec_name}", flush=True)
+        else:
+            time_serial.append(t)
+            print(f"{N};{2**N};{exec_name};serial;1;{t}", flush=True)
 
     ## PARALLEL with multiple threads
     for n_threads in nr_threads_list:
@@ -51,14 +87,13 @@ def run_and_plot(exec_name: str, start_range: int, end_range: int):
             N = i
             result = subprocess.run([exec_name, str(N)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=my_env)
             output = result.stdout.decode('utf-8')
-            for line in output.splitlines():
-                print(line)
-                if "parallel" in line:
-                    print(line)
-                    times = re.findall(r"[-+]?\d*\.\d+|\d+ s", line)
-                    t = str(times[1]) # elapsed_real_time
-                    time_parallel_with_n_threads.append(float(t))
-                    print(f"{N};{2**N};{exec_name};parallel;{n_threads};{t}", flush=True)
+            t = extract_elapsed_real_time(output)
+            if t is None:
+                time_parallel_with_n_threads.append(float('nan'))
+                print(f"WARN: missing parallel timing for N={N}, p={n_threads} in {exec_name}", flush=True)
+            else:
+                time_parallel_with_n_threads.append(t)
+                print(f"{N};{2**N};{exec_name};parallel;{n_threads};{t}", flush=True)
 
         time_parallel.append(time_parallel_with_n_threads)
 
@@ -78,6 +113,7 @@ def run_and_plot(exec_name: str, start_range: int, end_range: int):
     plt.savefig(f'plot_{os.path.basename(exec_name).split(".")[0]}.png', dpi=200, bbox_inches='tight')
     plt.clf() 
 if __name__ == "__main__":
+    print(f"Using thread list: {nr_threads_list}", flush=True)
     run_and_plot("./bubble.run", 2, 16)
     run_and_plot("./mergesort.run", 10, 28)
     run_and_plot("./odd-even.run", 10, 19)

@@ -60,7 +60,7 @@ void sequential_merge_sort(uint64_t *T, const uint64_t size) {
 }
 
 // below this size, task creation overhead is larger than task benefit as shown in the benchmark
-#define PARALLEL_THRESHOLD 1024
+#define PARALLEL_THRESHOLD 64
 
 static void parallel_merge_sort_rec(uint64_t *T, const uint64_t size) {
     if (size < 2)

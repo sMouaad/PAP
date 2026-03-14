@@ -26,7 +26,13 @@ void sequential_bubble_sort(uint64_t *T, const uint64_t size) {
 }
 
 void parallel_bubble_sort(uint64_t *T, const uint64_t size) {
+    if (size < 2)
+        return;
+
     int nthreads = omp_get_max_threads(); // see how many threads openmpwill use
+    if ((uint64_t)nthreads > size)
+        nthreads = (int)size;
+
     uint64_t chunk_size = size / nthreads; // divide array into equal chunks
     int global_sorted; // shared variable
 

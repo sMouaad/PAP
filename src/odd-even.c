@@ -13,16 +13,61 @@
 */
 
 void sequential_oddeven_sort(uint64_t *T, const uint64_t size) {
-    /* TODO: sequential implementation of odd-even sort */
+    if (size < 2)
+        return;
 
-    return;
+    int sorted;
+    do {
+        sorted = 1;
+
+        for (uint64_t i = 0; i < size - 1; i += 2) {
+            if (T[i] > T[i + 1]) {
+                uint64_t tmp = T[i];
+                T[i] = T[i + 1];
+                T[i + 1] = tmp;
+                sorted = 0;
+            }
+        }
+
+        for (uint64_t i = 1; i < size - 1; i += 2) {
+            if (T[i] > T[i + 1]) {
+                uint64_t tmp = T[i];
+                T[i] = T[i + 1];
+                T[i + 1] = tmp;
+                sorted = 0;
+            }
+        }
+    } while (!sorted);
 }
 
 void parallel_oddeven_sort(uint64_t *T, const uint64_t size) {
+    if (size < 2)
+        return;
 
-    /* TODO: parallel implementation of odd-even sort */
+    int sorted;
+    do {
+        sorted = 1;
 
-    return;
+        #pragma omp parallel for schedule(static) reduction(&:sorted)
+        for (uint64_t i = 0; i < size - 1; i += 2) {
+            if (T[i] > T[i + 1]) {
+                uint64_t tmp = T[i];
+                T[i] = T[i + 1];
+                T[i + 1] = tmp;
+                sorted = 0;
+            }
+        }
+
+        #pragma omp parallel for schedule(static) reduction(&:sorted)
+        for (uint64_t i = 1; i < size - 1; i += 2) {
+            if (T[i] > T[i + 1]) {
+                uint64_t tmp = T[i];
+                T[i] = T[i + 1];
+                T[i + 1] = tmp;
+                sorted = 0;
+            }
+        }
+    } while (!sorted);
 }
 
 int main(int argc, char **argv) {
