@@ -11,15 +11,56 @@
 */
 
 void sequential_bubble_sort(uint64_t *T, const uint64_t size) {
-    /* TODO: sequential implementation of bubble sort */
-
-    return;
+    int sorted;
+    do {
+        sorted = 1; // we assume sorted in the beginning
+        for (uint64_t i = 0; i < size - 1; i++) {
+            if (T[i] > T[i + 1]) {
+                uint64_t tmp = T[i];
+                T[i]     = T[i + 1];
+                T[i + 1] = tmp;
+                sorted = 0; // we swapped, so its not sorted
+            }
+        }
+    } while (!sorted); // as long as it's not swapped, redo the whole process
 }
 
 void parallel_bubble_sort(uint64_t *T, const uint64_t size) {
-    /* TODO: parallel implementation of bubble sort */
+    int nthreads = omp_get_max_threads(); // see how many threads openmpwill use
+    uint64_t chunk_size = size / nthreads; // divide array into equal chunks
+    int global_sorted; // shared variable
 
-    return;
+    do {
+        global_sorted = 1;
+
+        // bubble sort each chunk in parallel
+        #pragma omp parallel for schedule(static, 1) reduction(&:global_sorted)
+        for (int t = 0; t < nthreads; t++) {
+            uint64_t start = (uint64_t)t * chunk_size;
+            uint64_t end   = (t == nthreads - 1) ? size : start + chunk_size;
+            for (uint64_t i = start; i < end - 1; i++) {
+                if (T[i] > T[i + 1]) {
+                    uint64_t tmp = T[i];
+                    T[i] = T[i + 1];
+                    T[i + 1] = tmp;
+                    global_sorted = 0;
+                }
+            }
+        }
+
+        // fix boundaries between chunks
+        #pragma omp parallel for schedule(static, 1) reduction(&:global_sorted)
+        for (int t = 0; t < nthreads - 1; t++) {
+            uint64_t border = (uint64_t)(t + 1) * chunk_size - 1;
+            if (T[border] > T[border + 1]) {
+                uint64_t tmp  = T[border];
+                T[border]     = T[border + 1];
+                T[border + 1] = tmp;
+                global_sorted = 0;
+            }
+        }
+        
+    } while (!global_sorted);
 }
 
 int main(int argc, char **argv) {
