@@ -60,7 +60,7 @@ void lbm_comm_ghost_exchange_ex3(lbm_comm_t * comm, lbm_mesh_t * mesh)
     MPI_Request requests[4 * height];
     int req_id = 0;
 
-    // ===== IRECV FIRST =====
+    //IRECV FIRST
     for (int y = 0; y < height; y++)
     {
         double * recv_left  = lbm_mesh_get_cell(mesh, 0, y);
@@ -70,7 +70,7 @@ void lbm_comm_ghost_exchange_ex3(lbm_comm_t * comm, lbm_mesh_t * mesh)
         MPI_Irecv(recv_right, DIRECTIONS, MPI_DOUBLE, right, 0, MPI_COMM_WORLD, &requests[req_id++]);
     }
 
-    // ===== ISEND =====
+    //ISEND
     for (int y = 0; y < height; y++)
     {
         double * send_left  = lbm_mesh_get_cell(mesh, 1, y);
@@ -80,6 +80,6 @@ void lbm_comm_ghost_exchange_ex3(lbm_comm_t * comm, lbm_mesh_t * mesh)
         MPI_Isend(send_right, DIRECTIONS, MPI_DOUBLE, right, 0, MPI_COMM_WORLD, &requests[req_id++]);
     }
 
-    // ===== WAIT =====
+    //WAIT : we need to wait for all the requests to complete before accessing the ghost cells
     MPI_Waitall(req_id, requests, MPI_STATUSES_IGNORE);
 }
