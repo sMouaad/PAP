@@ -41,45 +41,26 @@ void lbm_comm_ghost_exchange_ex3(lbm_comm_t * comm, lbm_mesh_t * mesh)
 	//    - comm->width : The with of the local sub-domain (containing the ghost cells)
 	//    - comm->height : The height of the local sub-domain (containing the ghost cells)
 	
-	//example to access cell
-	//double * cell = lbm_mesh_get_cell(mesh, local_x, local_y);
-	//double * cell = lbm_mesh_get_cell(mesh, comm->width - 1, 0);
-
 	int rank, size;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
+	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    int left  = rank - 1;
-    int right = rank + 1;
+	int left  = rank - 1;
+	int right = rank + 1;
+	if (left < 0) left = MPI_PROC_NULL;
+	if (right >= size) right = MPI_PROC_NULL;
 
-    if (left < 0) left = MPI_PROC_NULL;
-    if (right >= size) right = MPI_PROC_NULL;
+	int count = comm->height * DIRECTIONS;
+	MPI_Request requests[4];
 
-    int height = comm->height;
+	// post all receives first
+	MPI_Irecv(lbm_mesh_get_cell(mesh, 0, 0), count, MPI_DOUBLE, left, 0, MPI_COMM_WORLD, &requests[0]);
+	MPI_Irecv(lbm_mesh_get_cell(mesh, comm->width - 1, 0), count, MPI_DOUBLE, right, 1, MPI_COMM_WORLD, &requests[1]);
 
-    MPI_Request requests[4 * height];
-    int req_id = 0;
+	// then all sends
+	MPI_Isend(lbm_mesh_get_cell(mesh, 1, 0), count, MPI_DOUBLE, left, 1, MPI_COMM_WORLD, &requests[2]);
+	MPI_Isend(lbm_mesh_get_cell(mesh, comm->width - 2, 0), count, MPI_DOUBLE, right, 0, MPI_COMM_WORLD, &requests[3]);
 
-    //IRECV FIRST
-    for (int y = 0; y < height; y++)
-    {
-        double * recv_left  = lbm_mesh_get_cell(mesh, 0, y);
-        double * recv_right = lbm_mesh_get_cell(mesh, comm->width - 1, y);
-
-        MPI_Irecv(recv_left, DIRECTIONS, MPI_DOUBLE, left, 0, MPI_COMM_WORLD, &requests[req_id++]);
-        MPI_Irecv(recv_right, DIRECTIONS, MPI_DOUBLE, right, 0, MPI_COMM_WORLD, &requests[req_id++]);
-    }
-
-    //ISEND
-    for (int y = 0; y < height; y++)
-    {
-        double * send_left  = lbm_mesh_get_cell(mesh, 1, y);
-        double * send_right = lbm_mesh_get_cell(mesh, comm->width - 2, y);
-
-        MPI_Isend(send_left, DIRECTIONS, MPI_DOUBLE, left, 0, MPI_COMM_WORLD, &requests[req_id++]);
-        MPI_Isend(send_right, DIRECTIONS, MPI_DOUBLE, right, 0, MPI_COMM_WORLD, &requests[req_id++]);
-    }
-
-    //WAIT : we need to wait for all the requests to complete before accessing the ghost cells
-    MPI_Waitall(req_id, requests, MPI_STATUSES_IGNORE);
+	// wait for everything
+	MPI_Waitall(4, requests, MPI_STATUSES_IGNORE);
 }
