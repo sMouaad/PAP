@@ -74,46 +74,23 @@ void lbm_comm_ghost_exchange_ex1(lbm_comm_t * comm, lbm_mesh_t * mesh)
 	//    - comm->width : The with of the local sub-domain (containing the ghost cells)
 	//    - comm->height : The height of the local sub-domain (containing the ghost cells)
 	
-	//example to access cell
-	//double * cell = lbm_mesh_get_cell(mesh, local_x, local_y);
-	//double * cell = lbm_mesh_get_cell(mesh, comm->width - 1, 0);
-
-
 	int rank, size;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
 	int left  = rank - 1;
 	int right = rank + 1;
-
 	if (left < 0) left = MPI_PROC_NULL;
 	if (right >= size) right = MPI_PROC_NULL;
 
-	int height = comm->height;
+	// cells along Y are contiguous, so we can send a full column at once
+	int count = comm->height * DIRECTIONS;
 
-    //LEFT EXCHANGE
-    for (int y = 0; y < height; y++)
-    {
-        double * send_cell = lbm_mesh_get_cell(mesh, 1, y);
-        double * recv_cell = lbm_mesh_get_cell(mesh, 0, y);
+	// send my first real column to left, recv from right into right ghost
+	MPI_Send(lbm_mesh_get_cell(mesh, 1, 0), count, MPI_DOUBLE, left, 0, MPI_COMM_WORLD);
+	MPI_Recv(lbm_mesh_get_cell(mesh, comm->width - 1, 0), count, MPI_DOUBLE, right, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-        MPI_Sendrecv(
-            send_cell, DIRECTIONS, MPI_DOUBLE, left, 0,
-            recv_cell, DIRECTIONS, MPI_DOUBLE, left, 0,
-            MPI_COMM_WORLD, MPI_STATUS_IGNORE
-        );
-    }
-
-    //RIGHT EXCHANGE
-    for (int y = 0; y < height; y++)
-    {
-        double * send_cell = lbm_mesh_get_cell(mesh, comm->width - 2, y);
-        double * recv_cell = lbm_mesh_get_cell(mesh, comm->width - 1, y);
-
-        MPI_Sendrecv(
-            send_cell, DIRECTIONS, MPI_DOUBLE, right, 0,
-            recv_cell, DIRECTIONS, MPI_DOUBLE, right, 0,
-            MPI_COMM_WORLD, MPI_STATUS_IGNORE
-        );
-    }
+	// send my last real column to right, recv from left into left ghost
+	MPI_Send(lbm_mesh_get_cell(mesh, comm->width - 2, 0), count, MPI_DOUBLE, right, 1, MPI_COMM_WORLD);
+	MPI_Recv(lbm_mesh_get_cell(mesh, 0, 0), count, MPI_DOUBLE, left, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 }
